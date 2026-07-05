@@ -88,7 +88,21 @@ function App() {
       msalRef.current = instance;
       try {
         await instance.initialize();
-        const redirectResult = await instance.handleRedirectPromise();
+        let redirectResult = null;
+        try {
+          redirectResult = await instance.handleRedirectPromise();
+        } catch (redirectError) {
+          // A stale or interrupted interaction (e.g. left over from a previous
+          // popup-based build) can leave the temporary cache in a bad state such
+          // as no_token_request_cache_error. Clear it and continue so the user can
+          // simply sign in again instead of being stuck on an error.
+          try {
+            await instance.clearCache();
+          } catch (clearError) {
+            /* best effort */
+          }
+          redirectResult = null;
+        }
         const activeAccount = redirectResult?.account || instance.getAllAccounts()[0] || null;
         if (activeAccount) {
           instance.setActiveAccount(activeAccount);
