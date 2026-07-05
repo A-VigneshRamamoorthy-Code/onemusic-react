@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { InteractionRequiredAuthError, PublicClientApplication } from '@azure/msal-browser';
+import AlbumArt, { artworkDataUrl } from './AlbumArt';
 
 const AUDIO_EXTENSIONS = new Set(['mp3', 'm4a', 'aac', 'wav', 'flac', 'ogg', 'oga', 'opus', 'wma', 'mpeg', 'mp4', 'm4b', 'alac']);
 const SCOPES = ['User.Read', 'Files.Read.All', 'offline_access'];
@@ -85,9 +86,12 @@ function App() {
   const [duration, setDuration] = useState(0);
   const [volume, setVolume] = useState(0.8);
   const [isLoading, setIsLoading] = useState(true);
+  const [isNowPlayingOpen, setNowPlayingOpen] = useState(false);
+  const [isSyncOpen, setSyncOpen] = useState(true);
   const audioRef = useRef(null);
   const msalRef = useRef(null);
   const objectUrlRef = useRef('');
+  const scanIdRef = useRef(0);
   const config = useMemo(() => {
     const params = new URLSearchParams(window.location.search);
     return {
@@ -166,6 +170,24 @@ function App() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!isNowPlayingOpen) {
+      return undefined;
+    }
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const handleKey = (event) => {
+      if (event.key === 'Escape') {
+        setNowPlayingOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKey);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener('keydown', handleKey);
+    };
+  }, [isNowPlayingOpen]);
+
   const visibleTracks = useMemo(() => {
     const query = searchTerm.trim().toLowerCase();
     if (!query) {
@@ -199,9 +221,15 @@ function App() {
     }
   };
 
-  const walkDriveNode = async (route, items, token) => {
+  const walkDriveNode = async (route, token, onBatch, shouldStop) => {
+    if (shouldStop && shouldStop()) {
+      return;
+    }
     let url = route.startsWith('http') ? route : `https://graph.microsoft.com/v1.0${route}`;
     while (url) {
+      if (shouldStop && shouldStop()) {
+        return;
+      }
       const response = await fetch(url, {
         headers: {
           Authorization: `Bearer ${token}`,
@@ -223,13 +251,23 @@ function App() {
 
       const payload = await response.json();
       const children = payload.value || [];
+      const foundHere = [];
+      const subfolders = [];
 
       for (const child of children) {
         if (child.folder) {
-          await walkDriveNode(`/me/drive/items/${child.id}/children`, items, token);
+          subfolders.push(child);
         } else if (isAudioFile(child.name)) {
-          items.push(buildTrackMetadata(child));
+          foundHere.push(buildTrackMetadata(child));
         }
+      }
+
+      if (foundHere.length) {
+        onBatch(foundHere);
+      }
+
+      for (const folder of subfolders) {
+        await walkDriveNode(`/me/drive/items/${folder.id}/children`, token, onBatch, shouldStop);
       }
 
       url = payload['@odata.nextLink'] || '';
@@ -241,26 +279,65 @@ function App() {
       return;
     }
     const label = folderLabel(rawPath);
+    const scanId = scanIdRef.current + 1;
+    scanIdRef.current = scanId;
+    const shouldStop = () => scanIdRef.current !== scanId;
+
     setIsLoading(true);
-    setStatus(`Scanning ${label} for audio files…`);
+    setTracks([]);
+    setQueue([]);
+    setStatus(`Scanning ${label}…`);
+
+    const seen = new Set();
+    let count = 0;
+
     try {
       const token = await ensureAccessToken(accountToUse);
-      const discovered = [];
-      await walkDriveNode(buildFolderRoute(rawPath), discovered, token);
-      const sorted = discovered.sort((left, right) => left.title.localeCompare(right.title));
-      setTracks(sorted);
-      setQueue(sorted.slice(0, Math.min(8, sorted.length)));
-      setActiveTrackId((current) => current || (sorted.length ? sorted[0].id : null));
+      await walkDriveNode(
+        buildFolderRoute(rawPath),
+        token,
+        (batch) => {
+          if (shouldStop()) {
+            return;
+          }
+          const fresh = batch.filter((track) => !seen.has(track.id));
+          if (!fresh.length) {
+            return;
+          }
+          fresh.forEach((track) => seen.add(track.id));
+          count += fresh.length;
+          setTracks((previous) => {
+            const merged = previous.concat(fresh);
+            merged.sort((left, right) => left.title.localeCompare(right.title));
+            return merged;
+          });
+          setActiveTrackId((current) => current || fresh[0].id);
+          setQueue((previous) => (previous.length >= 8 ? previous : previous.concat(fresh).slice(0, 8)));
+          setStatus(`Scanning ${label}… found ${count} track${count === 1 ? '' : 's'} so far.`);
+        },
+        shouldStop,
+      );
+
+      if (shouldStop()) {
+        return;
+      }
       setStatus(
-        sorted.length
-          ? `Loaded ${sorted.length} audio file${sorted.length === 1 ? '' : 's'} from ${label}.`
+        count
+          ? `Loaded ${count} audio file${count === 1 ? '' : 's'} from ${label}.`
           : `No audio files found in ${label}.`,
       );
+      if (count) {
+        setSyncOpen(false);
+      }
     } catch (error) {
-      setTracks([]);
+      if (shouldStop()) {
+        return;
+      }
       setStatus(`Sync failed for ${label}: ${error.message}`);
     } finally {
-      setIsLoading(false);
+      if (!shouldStop()) {
+        setIsLoading(false);
+      }
     }
   };
 
@@ -383,16 +460,24 @@ function App() {
   };
 
   const playNext = () => {
-    const currentIndex = queue.findIndex((track) => track.id === activeTrackId);
-    const nextTrack = queue[(currentIndex + 1) % queue.length];
+    const list = tracks.length ? tracks : queue;
+    if (!list.length) {
+      return;
+    }
+    const currentIndex = list.findIndex((track) => track.id === activeTrackId);
+    const nextTrack = list[(currentIndex + 1) % list.length];
     if (nextTrack) {
       handleTrackSelect(nextTrack);
     }
   };
 
   const playPrevious = () => {
-    const currentIndex = queue.findIndex((track) => track.id === activeTrackId);
-    const previousTrack = queue[(currentIndex - 1 + queue.length) % queue.length];
+    const list = tracks.length ? tracks : queue;
+    if (!list.length) {
+      return;
+    }
+    const currentIndex = list.findIndex((track) => track.id === activeTrackId);
+    const previousTrack = list[(currentIndex - 1 + list.length) % list.length];
     if (previousTrack) {
       handleTrackSelect(previousTrack);
     }
@@ -402,8 +487,21 @@ function App() {
     if (!audioRef.current) {
       return;
     }
-    setProgress(audioRef.current.currentTime || 0);
-    setDuration(audioRef.current.duration || 0);
+    const currentTime = audioRef.current.currentTime || 0;
+    const totalDuration = audioRef.current.duration || 0;
+    setProgress(currentTime);
+    setDuration(totalDuration);
+    if ('mediaSession' in navigator && navigator.mediaSession.setPositionState && Number.isFinite(totalDuration) && totalDuration > 0) {
+      try {
+        navigator.mediaSession.setPositionState({
+          duration: totalDuration,
+          position: Math.min(currentTime, totalDuration),
+          playbackRate: audioRef.current.playbackRate || 1,
+        });
+      } catch (positionError) {
+        /* setPositionState can throw on some browsers; ignore */
+      }
+    }
   };
 
   const handleVolumeChange = (event) => {
@@ -414,188 +512,278 @@ function App() {
     }
   };
 
+  useEffect(() => {
+    if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) {
+      return undefined;
+    }
+    const session = navigator.mediaSession;
+
+    if (activeTrack && typeof window.MediaMetadata === 'function') {
+      try {
+        session.metadata = new window.MediaMetadata({
+          title: activeTrack.title || activeTrack.name || 'Unknown title',
+          artist: activeTrack.artist || 'OneMusic',
+          album: activeTrack.album || 'OneDrive',
+          artwork: [
+            { src: artworkDataUrl(activeTrack.id), sizes: '512x512', type: 'image/svg+xml' },
+          ],
+        });
+      } catch (metadataError) {
+        /* MediaMetadata may be unavailable */
+      }
+    }
+
+    try {
+      session.playbackState = isPlaying ? 'playing' : 'paused';
+    } catch (stateError) {
+      /* playbackState is best-effort */
+    }
+
+    const resume = async () => {
+      try {
+        await audioRef.current?.play();
+        setIsPlaying(true);
+      } catch (playError) {
+        /* ignore */
+      }
+    };
+    const pause = () => {
+      audioRef.current?.pause();
+      setIsPlaying(false);
+    };
+    const setHandler = (action, handler) => {
+      try {
+        session.setActionHandler(action, handler);
+      } catch (handlerError) {
+        /* unsupported action */
+      }
+    };
+
+    setHandler('play', resume);
+    setHandler('pause', pause);
+    setHandler('previoustrack', () => playPrevious());
+    setHandler('nexttrack', () => playNext());
+    setHandler('seekto', (details) => {
+      if (audioRef.current && details && typeof details.seekTime === 'number') {
+        audioRef.current.currentTime = details.seekTime;
+        setProgress(details.seekTime);
+      }
+    });
+
+    return undefined;
+  }, [activeTrack, isPlaying, tracks]);
+
   return (
-    <div className="app-shell">
-      <header className="topbar card">
-        <div className="brand-block">
-          <div className="brand-mark" aria-hidden="true">♫</div>
-          <div>
-            <p className="section-label">Microsoft OneDrive</p>
-            <h1>OneMusic</h1>
+    <div className={`app ${isNowPlayingOpen ? 'app--locked' : ''}`}>
+      <header className="app-header">
+        <div className="brand">
+          <span className="brand__mark" aria-hidden="true">♫</span>
+          <div className="brand__text">
+            <span className="brand__eyebrow">Microsoft OneDrive</span>
+            <h1 className="brand__title">OneMusic</h1>
           </div>
         </div>
-        <div className="topbar-actions">
-          <button className="button secondary" type="button" onClick={handleRefreshLibrary} disabled={!account || isLoading}>
-            Refresh library
-          </button>
-          <button className="button brand" type="button" onClick={handleSignIn}>
-            {account ? 'Sign out' : 'Connect OneDrive'}
-          </button>
+        <div className="app-header__actions">
+          {account ? (
+            <>
+              <button className="icon-btn" type="button" onClick={() => setSyncOpen((open) => !open)} aria-label="Folder to sync" title="Folder to sync" aria-pressed={isSyncOpen}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+                </svg>
+              </button>
+              <button className="icon-btn" type="button" onClick={handleRefreshLibrary} disabled={isLoading} aria-label="Refresh library" title="Refresh library">
+                <svg className={isLoading ? 'is-spinning' : ''} width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+                  <path d="M3 3v5h5" />
+                  <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16" />
+                  <path d="M21 21v-5h-5" />
+                </svg>
+              </button>
+              <button className="icon-btn" type="button" onClick={handleSignIn} aria-label="Sign out" title="Sign out">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                  <polyline points="16 17 21 12 16 7" />
+                  <line x1="21" y1="12" x2="9" y2="12" />
+                </svg>
+              </button>
+            </>
+          ) : (
+            <button className="btn btn--brand" type="button" onClick={handleSignIn}>
+              Sign in
+            </button>
+          )}
         </div>
       </header>
 
-      <main className="content-stack">
-        <section className="hero card">
-          <div className="hero-copy">
-            <p className="section-label">Real music from OneDrive</p>
-            <h2>Your Microsoft account unlocks a live library of audio files, streamed directly into OneMusic.</h2>
-            <p className="text-lead">
-              Sign in with Microsoft, let Graph discover your audio files, and use the player to browse, queue, and stream them in real time.
-            </p>
-            <div className="button-row">
-              <button className="button brand" type="button" onClick={handleSignIn}>
-                {account ? 'Switch account' : 'Sign in with Microsoft'}
-              </button>
+      <main className="app-main">
+        {!account ? (
+          <section className="hero">
+            <div className="hero__art" aria-hidden="true">
+              <AlbumArt seed="onemusic-hero-vinyl" />
             </div>
-            <div className="auth-card" aria-live="polite">
-              <div className="auth-card__header">
-                <div>
-                  <p className="section-label">Authentication</p>
-                  <h3>{account ? `Signed in as ${account.username}` : 'Awaiting Microsoft sign-in'}</h3>
-                </div>
-                <span className={`status-pill ${account ? 'active' : ''}`}>{account ? 'Connected' : 'Offline'}</span>
+            <div className="hero__copy">
+              <p className="eyebrow">Real music from OneDrive</p>
+              <h2 className="hero__title">Your music, streamed straight from OneDrive.</h2>
+              <p className="lead">Sign in with Microsoft, point OneMusic at a folder, and play your audio files anywhere — phone or desktop.</p>
+              <button className="btn btn--brand btn--lg" type="button" onClick={handleSignIn}>Sign in with Microsoft</button>
+              <p className={`hero__status ${authState === 'error' ? 'is-error' : ''}`} aria-live="polite">{status}</p>
+            </div>
+          </section>
+        ) : (
+          <>
+            {isSyncOpen ? (
+            <section className="sync-card" aria-live="polite">
+              <div className="sync-card__head">
+                <p className="eyebrow">Folder to sync</p>
+                <span className="account-chip" title={account.username}>{account.username}</span>
               </div>
-              <p className="text-lead">{status}</p>
-              {config.clientId ? null : (
-                <p className="text-lead">Set <code>?clientId=YOUR_APP_ID</code> and optionally <code>&tenant=common</code> before signing in.</p>
-              )}
-            </div>
-            {account ? (
-              <div className="folder-card" aria-live="polite">
-                <p className="section-label">Folder to sync</p>
-                <div className="folder-input-row">
-                  <span className="folder-prefix">My files /</span>
+              <div className="sync-row">
+                <div className="sync-field">
+                  <span className="sync-field__prefix">My files /</span>
                   <input
-                    className="search-input folder-input"
+                    className="sync-field__input"
                     type="text"
                     value={folderPath}
                     placeholder="Music/Melody"
                     aria-label="Folder path under My files"
                     onChange={(event) => setFolderPath(event.target.value)}
-                    onKeyDown={(event) => {
-                      if (event.key === 'Enter') {
-                        handleSync();
-                      }
-                    }}
+                    onKeyDown={(event) => { if (event.key === 'Enter') { handleSync(); } }}
                   />
-                  <button className="button brand" type="button" onClick={handleSync} disabled={isLoading}>
-                    {isLoading ? 'Syncing…' : 'Sync'}
-                  </button>
                 </div>
-                <p className="text-lead folder-hint">
-                  Only this folder (and its subfolders) is scanned. Leave blank to scan all of OneDrive (slower).
-                </p>
+                <button className="btn btn--brand" type="button" onClick={handleSync} disabled={isLoading}>
+                  {isLoading ? 'Syncing…' : 'Sync'}
+                </button>
               </div>
+              <p className="sync-hint">{status}</p>
+            </section>
             ) : null}
-          </div>
 
-          <div className="hero-preview">
-            <div className="hero-preview__art" aria-hidden="true" />
-            <div className="player-card">
-              <div className="player-card__meta">
-                <p className="section-label">Now playing</p>
-                <h3>{activeTrack ? activeTrack.title : 'Ready when you are'}</h3>
-                <p>{activeTrack ? `${activeTrack.artist} • ${activeTrack.album}` : 'Connect OneDrive to load your music.'}</p>
+            <section className="library">
+              <div className="library__head">
+                <h2 className="library__title">
+                  {isLoading ? 'Scanning…' : tracks.length ? `${tracks.length} track${tracks.length === 1 ? '' : 's'}` : 'Your library'}
+                </h2>
+                <div className="search">
+                  <span className="search__icon" aria-hidden="true">⌕</span>
+                  <input className="search__input" type="search" value={searchTerm} placeholder="Search" aria-label="Search tracks" onChange={(event) => setSearchTerm(event.target.value)} />
+                </div>
               </div>
-              <div className="timeline-row">
+
+              {visibleTracks.length > 0 ? (
+                <ul className="track-list">
+                  {isLoading ? (
+                    <li className="scan-banner">Still scanning {folderLabel(folderPath)} — tap any track to play now.</li>
+                  ) : null}
+                  {visibleTracks.map((track, index) => {
+                    const isActive = activeTrack?.id === track.id;
+                    return (
+                      <li key={track.id} className={`track ${isActive ? 'track--active' : ''}`} style={{ '--row': index % 12 }}>
+                        <button className="track__main" type="button" onClick={() => handleTrackSelect(track)}>
+                          <span className="track__art">
+                            <AlbumArt seed={track.id} playing={isActive && isPlaying} />
+                            <span className="track__overlay" aria-hidden="true">
+                              {isActive && isPlaying ? (
+                                <span className="track__eq"><i /><i /><i /></span>
+                              ) : (
+                                <span className="track__play">▶</span>
+                              )}
+                            </span>
+                          </span>
+                          <span className="track__meta">
+                            <span className="track__title">{track.title}</span>
+                            <span className="track__sub">{track.artist} • {track.album}</span>
+                          </span>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              ) : isLoading ? (
+                <div className="placeholder">
+                  <div className="placeholder__spinner" aria-hidden="true" />
+                  <p>Scanning {folderLabel(folderPath)} for audio files…</p>
+                </div>
+              ) : (
+                <div className="placeholder">
+                  <AlbumArt seed="empty-state" className="placeholder__art" />
+                  <p>No tracks yet. Enter a folder under “My files” and hit Sync.</p>
+                </div>
+              )}
+            </section>
+          </>
+        )}
+      </main>
+
+      {activeTrack ? (
+        <div className="mini-player">
+          <span className="mini-player__bar" aria-hidden="true">
+            <span className="mini-player__bar-fill" style={{ width: `${duration ? (progress / duration) * 100 : 0}%` }} />
+          </span>
+          <button className="mini-player__open" type="button" onClick={() => setNowPlayingOpen(true)} aria-label="Open now playing">
+            <span className="mini-player__art">
+              <AlbumArt seed={activeTrack.id} playing={isPlaying} />
+            </span>
+            <span className="mini-player__meta">
+              <span className="mini-player__title">{activeTrack.title}</span>
+              <span className="mini-player__sub">{activeTrack.artist}</span>
+            </span>
+            <span className="mini-player__expand" aria-hidden="true">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="18 15 12 9 6 15" /></svg>
+            </span>
+          </button>
+          <div className="mini-player__controls">
+            <button className="icon-btn" type="button" onClick={togglePlayback} aria-label={isPlaying ? 'Pause' : 'Play'}>
+              {isPlaying ? '❚❚' : '▶'}
+            </button>
+            <button className="icon-btn mini-player__next" type="button" onClick={playNext} aria-label="Next track">⏭</button>
+          </div>
+        </div>
+      ) : null}
+
+      {activeTrack ? (
+        <div className={`now-playing ${isNowPlayingOpen ? 'is-open' : ''}`} role="dialog" aria-modal="true" aria-label="Now playing" aria-hidden={!isNowPlayingOpen}>
+          <div className="now-playing__backdrop" onClick={() => setNowPlayingOpen(false)} />
+          <div className="now-playing__sheet">
+            <button className="now-playing__grip" type="button" onClick={() => setNowPlayingOpen(false)} aria-label="Close now playing" />
+            <div className="now-playing__art-wrap">
+              <AlbumArt seed={activeTrack.id} playing={isPlaying} spin className="now-playing__art" />
+            </div>
+            <div className="now-playing__meta">
+              <p className="eyebrow">Now playing</p>
+              <h2 className="now-playing__title">{activeTrack.title}</h2>
+              <p className="now-playing__sub">{activeTrack.artist} • {activeTrack.album}</p>
+            </div>
+            <div className="scrubber">
+              <input
+                className="scrubber__range"
+                type="range"
+                min="0"
+                max={duration || 100}
+                step="0.1"
+                value={progress}
+                aria-label="Seek"
+                onChange={(event) => { if (audioRef.current) { audioRef.current.currentTime = Number(event.target.value); setProgress(Number(event.target.value)); } }}
+              />
+              <div className="scrubber__times">
                 <span>{formatTime(progress)}</span>
-                <input type="range" min="0" max={duration || 100} step="0.1" value={progress} onChange={(event) => {
-                  if (audioRef.current) {
-                    audioRef.current.currentTime = Number(event.target.value);
-                    setProgress(Number(event.target.value));
-                  }
-                }} aria-label="Playback progress" />
                 <span>{formatTime(duration)}</span>
               </div>
-              <div className="player-card__controls">
-                <button className="icon-button" type="button" onClick={playPrevious}>
-                  ⏮
-                </button>
-                <button className="icon-button-large button brand" type="button" onClick={togglePlayback}>
-                  {isPlaying ? '❚❚' : '▶'}
-                </button>
-                <button className="icon-button" type="button" onClick={playNext}>
-                  ⏭
-                </button>
-              </div>
-              <label className="volume-control" htmlFor="volume-slider">
-                <span>🔊</span>
-                <input id="volume-slider" type="range" min="0" max="1" step="0.01" value={volume} onChange={handleVolumeChange} />
-              </label>
             </div>
+            <div className="transport">
+              <button className="icon-btn icon-btn--lg" type="button" onClick={playPrevious} aria-label="Previous track">⏮</button>
+              <button className="play-btn" type="button" onClick={togglePlayback} aria-label={isPlaying ? 'Pause' : 'Play'}>
+                {isPlaying ? '❚❚' : '▶'}
+              </button>
+              <button className="icon-btn icon-btn--lg" type="button" onClick={playNext} aria-label="Next track">⏭</button>
+            </div>
+            <label className="volume" htmlFor="np-volume">
+              <span aria-hidden="true">🔈</span>
+              <input id="np-volume" type="range" min="0" max="1" step="0.01" value={volume} aria-label="Volume" onChange={handleVolumeChange} />
+              <span aria-hidden="true">🔊</span>
+            </label>
           </div>
-        </section>
-
-        <section className="library-grid">
-          <div className="card library-card">
-            <div className="panel-head">
-              <div>
-                <p className="section-label">OneDrive library</p>
-                <h3>{isLoading ? 'Scanning…' : tracks.length ? 'Browse the tracks' : 'Ready to sync'}</h3>
-              </div>
-              <input className="search-input" type="search" value={searchTerm} placeholder="Search tracks" onChange={(event) => setSearchTerm(event.target.value)} />
-            </div>
-
-            {isLoading ? (
-              <div className="empty-state">Scanning {folderLabel(folderPath)} for audio files…</div>
-            ) : visibleTracks.length === 0 ? (
-              <div className="empty-state">
-                {account
-                  ? 'No tracks yet. Enter a folder under “My files” above and hit Sync.'
-                  : 'Sign in with Microsoft, then choose a folder to sync.'}
-              </div>
-            ) : (
-              <div className="track-list" role="list">
-                {visibleTracks.map((track) => (
-                  <article key={track.id} className={`track-row ${activeTrack?.id === track.id ? 'active' : ''}`}>
-                    <div className="track-row__body">
-                      <button className="icon-button" type="button" onClick={() => handleTrackSelect(track)}>
-                        ▶
-                      </button>
-                      <div className="track-meta">
-                        <span className="track-meta__title">{track.title}</span>
-                        <span className="track-meta__artist">{track.artist} • {track.album}</span>
-                      </div>
-                    </div>
-                    <div className="track-row__actions">
-                      <span className="track-chip">{track.name}</span>
-                    </div>
-                  </article>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <aside className="card queue-card">
-            <div className="panel-head">
-              <div>
-                <p className="section-label">Queue</p>
-                <h3>Up next</h3>
-              </div>
-            </div>
-            {queue.length === 0 ? (
-              <div className="empty-state">Your queue will appear here as soon as you start playing a track from OneDrive.</div>
-            ) : (
-              <div className="queue-list">
-                {queue.map((track, index) => (
-                  <div key={track.id} className="queue-item">
-                    <div className="queue-item__meta">
-                      <span className="queue-index">0{index + 1}</span>
-                      <div>
-                        <strong>{track.title}</strong>
-                        <p>{track.artist}</p>
-                      </div>
-                    </div>
-                    <button className="icon-button" type="button" onClick={() => handleTrackSelect(track)}>
-                      ▶
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </aside>
-        </section>
-      </main>
+        </div>
+      ) : null}
 
       <audio
         ref={audioRef}
