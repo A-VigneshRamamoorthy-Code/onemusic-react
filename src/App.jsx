@@ -244,6 +244,12 @@ function App() {
       setActiveTrackId(null);
       setStatus('Signed out. Connect again when you are ready.');
       setAuthState('idle');
+      try {
+        msalRef.current.setActiveAccount(null);
+        await msalRef.current.clearCache();
+      } catch (clearError) {
+        /* best effort — clearing local cache should not block sign-out */
+      }
       return;
     }
 
