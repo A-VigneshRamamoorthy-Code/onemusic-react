@@ -88,13 +88,14 @@ function App() {
       msalRef.current = instance;
       try {
         await instance.initialize();
-        await instance.handleRedirectPromise();
-        const accounts = instance.getAllAccounts();
-        if (accounts.length) {
-          setAccount(accounts[0]);
-          setStatus(`Signed in as ${accounts[0].username}.`);
+        const redirectResult = await instance.handleRedirectPromise();
+        const activeAccount = redirectResult?.account || instance.getAllAccounts()[0] || null;
+        if (activeAccount) {
+          instance.setActiveAccount(activeAccount);
+          setAccount(activeAccount);
+          setStatus(`Signed in as ${activeAccount.username}.`);
           setAuthState('ready');
-          await loadTracks(instance, accounts[0]);
+          await loadTracks(instance, activeAccount);
         } else {
           setAuthState('ready');
           setStatus('Sign in with Microsoft to browse your OneDrive music library.');
@@ -144,13 +145,8 @@ function App() {
       return response.accessToken;
     } catch (error) {
       if (error instanceof InteractionRequiredAuthError || error.errorCode === 'consent_required' || error.errorCode === 'interaction_required') {
-        const popupResult = await msalRef.current.loginPopup({ scopes: SCOPES, prompt: 'select_account' });
-        setAccount(popupResult.account);
-        const silentResult = await msalRef.current.acquireTokenSilent({
-          account: popupResult.account,
-          scopes: SCOPES,
-        });
-        return silentResult.accessToken;
+        await msalRef.current.acquireTokenRedirect({ account: accountToUse, scopes: SCOPES });
+        return '';
       }
       throw error;
     }
@@ -205,11 +201,6 @@ function App() {
   };
 
   const handleSignIn = async () => {
-    if (!config.clientId) {
-      setStatus('Add your Microsoft Entra app registration client ID using ?clientId=... to connect OneDrive.');
-      return;
-    }
-
     if (!msalRef.current) {
       setStatus('Authentication is still loading.');
       return;
@@ -227,11 +218,8 @@ function App() {
 
     setIsLoading(true);
     try {
-      const popupResult = await msalRef.current.loginPopup({ scopes: SCOPES, prompt: 'select_account' });
-      setAccount(popupResult.account);
-      setAuthState('ready');
-      setStatus(`Signed in as ${popupResult.account.username}.`);
-      await loadTracks(msalRef.current, popupResult.account);
+      setStatus('Redirecting to Microsoft sign-in…');
+      await msalRef.current.loginRedirect({ scopes: SCOPES, prompt: 'select_account' });
     } catch (error) {
       setStatus(`Sign-in failed: ${error.message}`);
       setAuthState('error');
