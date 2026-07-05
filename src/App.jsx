@@ -88,6 +88,7 @@ function App() {
       msalRef.current = instance;
       try {
         await instance.initialize();
+        await instance.handleRedirectPromise();
         const accounts = instance.getAllAccounts();
         if (accounts.length) {
           setAccount(accounts[0]);
