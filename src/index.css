@@ -121,8 +121,10 @@ button { border: 0; background: none; cursor: pointer; }
 :focus-visible { outline: none; box-shadow: 0 0 0 3px var(--brand-medium); }
 h1, h2, h3, p { margin: 0; }
 
-.app { max-width: 960px; margin: 0 auto; padding: 16px 16px 132px; display: flex; flex-direction: column; gap: 16px; min-height: 100vh; }
-@media (min-width: 768px) { .app { padding: 24px 24px 140px; gap: 22px; } }
+.app { max-width: 960px; margin: 0 auto; padding: 16px 16px 28px; display: flex; flex-direction: column; gap: 16px; min-height: 100vh; }
+@media (min-width: 768px) { .app { padding: 24px 24px 32px; gap: 22px; } }
+.app.has-tabbar { padding-bottom: 108px; }
+.app.has-mini { padding-bottom: 180px; }
 
 /* Header */
 .app-header {
@@ -234,17 +236,53 @@ h1, h2, h3, p { margin: 0; }
 .album-art--spin { animation: vinyl 10s linear infinite; }
 
 /* Mini player */
-.mini-player {
+/* Floating dock (Apple Music–style bottom UI) */
+.dock {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 40;
-  display: flex; align-items: center; gap: 8px;
-  padding: 8px 12px calc(8px + env(safe-area-inset-bottom));
-  border-top: 1px solid var(--border-default);
-  background: var(--neutral-primary-soft);
-  background: color-mix(in srgb, var(--neutral-primary-soft) 88%, transparent);
-  backdrop-filter: blur(16px);
-  box-shadow: var(--shadow-lg);
-  animation: slideUp var(--dur) var(--ease-out) both;
+  display: flex; justify-content: center;
+  padding: 0 12px calc(12px + env(safe-area-inset-bottom));
+  pointer-events: none;
 }
+.dock__inner { width: 100%; max-width: 680px; display: flex; flex-direction: column; gap: 10px; }
+.dock__inner > * { pointer-events: auto; }
+
+.mini-player {
+  position: relative;
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 10px;
+  border-radius: 20px;
+  border: 1px solid var(--border-default);
+  background: var(--neutral-primary-soft);
+  background: color-mix(in srgb, var(--neutral-primary-soft) 66%, transparent);
+  -webkit-backdrop-filter: blur(28px) saturate(1.6);
+  backdrop-filter: blur(28px) saturate(1.6);
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+  animation: rise var(--dur) var(--ease-out) both;
+}
+
+/* Floating tab / search bar */
+.tabbar {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px;
+  border-radius: 26px;
+  border: 1px solid var(--border-default);
+  background: var(--neutral-primary-soft);
+  background: color-mix(in srgb, var(--neutral-primary-soft) 66%, transparent);
+  -webkit-backdrop-filter: blur(28px) saturate(1.6);
+  backdrop-filter: blur(28px) saturate(1.6);
+  box-shadow: var(--shadow-lg);
+  animation: rise var(--dur) var(--ease-out) both;
+}
+.tabbar__home, .tabbar__mic { flex: 0 0 auto; width: 44px; height: 44px; border-radius: 50%; display: inline-grid; place-items: center; color: var(--heading); background: var(--neutral-secondary-medium); transition: background var(--dur-quick), color var(--dur-quick), transform var(--dur-quick); }
+.tabbar__home:hover, .tabbar__mic:hover { background: var(--neutral-tertiary-medium); color: var(--fg-brand); }
+.tabbar__home:active, .tabbar__mic:active { transform: scale(0.92); }
+.tabbar__search { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; height: 44px; padding: 0 14px; border-radius: var(--radius-full); background: var(--neutral-secondary-medium); transition: box-shadow var(--dur-quick); }
+.tabbar__search:focus-within { box-shadow: 0 0 0 1px var(--brand); }
+.tabbar__search-icon { flex: 0 0 auto; display: inline-grid; place-items: center; color: var(--body-subtle); }
+.tabbar__input { flex: 1; min-width: 0; background: none; border: 0; font-size: 15px; color: var(--heading); }
+.tabbar__input::placeholder { color: var(--body-subtle); }
+.tabbar__input:focus-visible { box-shadow: none; }
 .mini-player__bar { position: absolute; top: 0; left: 0; right: 0; height: 2px; background: var(--neutral-secondary-medium); }
 .mini-player__bar-fill { display: block; height: 100%; background: linear-gradient(90deg, var(--brand), var(--brand-strong)); transition: width 200ms linear; }
 .mini-player__open { flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px; padding: 4px; border-radius: var(--radius-default); text-align: left; transition: background var(--dur-quick); }

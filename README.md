@@ -32,7 +32,8 @@ Scanning an entire OneDrive can be slow, so after signing in you pick which fold
 
 - Each track gets a unique, procedurally generated album-art tile (vinyl, equalizer, waveform, sunburst, or note-mesh), so a missing cover never looks empty.
 - **Views** — switch between **Songs**, **Albums** (grouped by album), and **Offline** (downloaded tracks) with the segmented control above the list.
-- A persistent **now-playing bar** sits at the bottom; tap it to open a **full-screen player** with large album art, scrubber, and transport controls. The full-screen player is a **draggable bottom sheet** — swipe/flick it down (or tap the grip) to dismiss.
+- A persistent **now-playing bar** sits at the bottom as a floating, frosted pill; tap it to open a **full-screen player** with large album art, scrubber, and transport controls. The full-screen player is a **draggable bottom sheet** — swipe/flick it down (or tap the grip) to dismiss.
+- The bottom **search bar** is a floating, frosted pill too (Apple Music style) with a Home button (scroll to top / Songs view), a library search field, and a mic button that focuses the search.
 - **Fast skips** — the next and previous 2 tracks are prefetched in the background so ⏭/⏮ start almost instantly.
 - The **Media Session API** is wired up (metadata, artwork, play/pause/next/previous/seek), so playback continues when an iPhone is locked and shows on the lock screen / Control Center.
 

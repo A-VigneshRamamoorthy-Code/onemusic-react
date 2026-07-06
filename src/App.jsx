@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { InteractionRequiredAuthError, PublicClientApplication } from '@azure/msal-browser';
 import AlbumArt, { artworkDataUrl } from './AlbumArt';
-import { IconMusic, IconSearch, IconPlay, IconPause, IconPrev, IconNext, IconVolumeLow, IconVolumeHigh, IconDownload, IconCheck, IconTrash, IconSpinner, IconList, IconAlbum } from './icons';
+import { IconMusic, IconSearch, IconPlay, IconPause, IconPrev, IconNext, IconVolumeLow, IconVolumeHigh, IconDownload, IconCheck, IconTrash, IconSpinner, IconList, IconAlbum, IconHome, IconMic } from './icons';
 import { saveTrack, getTrackBlob, listTracks, deleteTrack } from './offline';
 
 const AUDIO_EXTENSIONS = new Set(['mp3', 'm4a', 'aac', 'wav', 'flac', 'ogg', 'oga', 'opus', 'wma', 'mpeg', 'mp4', 'm4b', 'alac']);
@@ -102,6 +102,7 @@ function App() {
   const scanIdRef = useRef(0);
   const orderedTracksRef = useRef([]);
   const dragStartRef = useRef(null);
+  const searchInputRef = useRef(null);
   const config = useMemo(() => {
     const params = new URLSearchParams(window.location.search);
     return {
@@ -672,6 +673,20 @@ function App() {
     setDragY(0);
   };
 
+  const handleHome = () => {
+    setViewMode('songs');
+    setNowPlayingOpen(false);
+    if (typeof window !== 'undefined') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
+  const handleMic = () => {
+    if (searchInputRef.current) {
+      searchInputRef.current.focus();
+    }
+  };
+
   useEffect(() => {
     if (!activeTrackId) {
       return undefined;
@@ -806,7 +821,7 @@ function App() {
   };
 
   return (
-    <div className={`app ${isNowPlayingOpen ? 'app--locked' : ''}`}>
+    <div className={`app ${isNowPlayingOpen ? 'app--locked' : ''} ${account && (tracks.length > 0 || downloadedTracks.length > 0) ? 'has-tabbar' : ''} ${activeTrack ? 'has-mini' : ''}`}>
       <header className="app-header">
         <div className="brand">
           <span className="brand__mark" aria-hidden="true"><IconMusic size={22} /></span>
@@ -895,12 +910,6 @@ function App() {
                 <h2 className="library__title">
                   {isLoading ? 'Scanning…' : viewMode === 'downloaded' ? 'Offline' : tracks.length ? `${tracks.length} track${tracks.length === 1 ? '' : 's'}` : 'Your library'}
                 </h2>
-                {tracks.length > 0 || downloadedTracks.length > 0 ? (
-                  <div className="search">
-                    <span className="search__icon" aria-hidden="true"><IconSearch size={16} /></span>
-                    <input className="search__input" type="search" value={searchTerm} placeholder="Search" aria-label="Search tracks" onChange={(event) => setSearchTerm(event.target.value)} />
-                  </div>
-                ) : null}
               </div>
 
               {tracks.length > 0 || downloadedTracks.length > 0 ? (
@@ -983,28 +992,57 @@ function App() {
         )}
       </main>
 
-      {activeTrack ? (
-        <div className="mini-player">
-          <span className="mini-player__bar" aria-hidden="true">
-            <span className="mini-player__bar-fill" style={{ width: `${duration ? (progress / duration) * 100 : 0}%` }} />
-          </span>
-          <button className="mini-player__open" type="button" onClick={() => setNowPlayingOpen(true)} aria-label="Open now playing">
-            <span className="mini-player__art">
-              <AlbumArt seed={activeTrack.id} playing={isPlaying} />
-            </span>
-            <span className="mini-player__meta">
-              <span className="mini-player__title">{activeTrack.title}</span>
-              <span className="mini-player__sub">{activeTrack.artist}</span>
-            </span>
-            <span className="mini-player__expand" aria-hidden="true">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="18 15 12 9 6 15" /></svg>
-            </span>
-          </button>
-          <div className="mini-player__controls">
-            <button className="icon-btn" type="button" onClick={togglePlayback} aria-label={isPlaying ? 'Pause' : 'Play'}>
-              {isPlaying ? <IconPause size={18} /> : <IconPlay size={18} />}
-            </button>
-            <button className="icon-btn mini-player__next" type="button" onClick={playNext} aria-label="Next track"><IconNext size={20} /></button>
+      {account && (activeTrack || tracks.length > 0 || downloadedTracks.length > 0) ? (
+        <div className="dock">
+          <div className="dock__inner">
+            {activeTrack ? (
+              <div className="mini-player">
+                <span className="mini-player__bar" aria-hidden="true">
+                  <span className="mini-player__bar-fill" style={{ width: `${duration ? (progress / duration) * 100 : 0}%` }} />
+                </span>
+                <button className="mini-player__open" type="button" onClick={() => setNowPlayingOpen(true)} aria-label="Open now playing">
+                  <span className="mini-player__art">
+                    <AlbumArt seed={activeTrack.id} playing={isPlaying} />
+                  </span>
+                  <span className="mini-player__meta">
+                    <span className="mini-player__title">{activeTrack.title}</span>
+                    <span className="mini-player__sub">{activeTrack.artist}</span>
+                  </span>
+                  <span className="mini-player__expand" aria-hidden="true">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="18 15 12 9 6 15" /></svg>
+                  </span>
+                </button>
+                <div className="mini-player__controls">
+                  <button className="icon-btn" type="button" onClick={togglePlayback} aria-label={isPlaying ? 'Pause' : 'Play'}>
+                    {isPlaying ? <IconPause size={18} /> : <IconPlay size={18} />}
+                  </button>
+                  <button className="icon-btn mini-player__next" type="button" onClick={playNext} aria-label="Next track"><IconNext size={20} /></button>
+                </div>
+              </div>
+            ) : null}
+
+            {tracks.length > 0 || downloadedTracks.length > 0 ? (
+              <div className="tabbar">
+                <button className="tabbar__home" type="button" onClick={handleHome} aria-label="Home">
+                  <IconHome size={20} />
+                </button>
+                <div className="tabbar__search">
+                  <span className="tabbar__search-icon" aria-hidden="true"><IconSearch size={18} /></span>
+                  <input
+                    ref={searchInputRef}
+                    className="tabbar__input"
+                    type="search"
+                    value={searchTerm}
+                    placeholder="Songs, artists, albums…"
+                    aria-label="Search your library"
+                    onChange={(event) => setSearchTerm(event.target.value)}
+                  />
+                </div>
+                <button className="tabbar__mic" type="button" onClick={handleMic} aria-label="Search by voice">
+                  <IconMic size={20} />
+                </button>
+              </div>
+            ) : null}
           </div>
         </div>
       ) : null}

@@ -161,3 +161,22 @@ export function IconAlbum({ size, className }) {
     </Stroke>
   );
 }
+
+export function IconHome({ size, className }) {
+  return (
+    <Stroke size={size} className={className}>
+      <path d="M3 10.5 12 3l9 7.5" />
+      <path d="M5 9.5V20a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1V9.5" />
+    </Stroke>
+  );
+}
+
+export function IconMic({ size, className }) {
+  return (
+    <Stroke size={size} className={className}>
+      <rect x="9" y="2" width="6" height="12" rx="3" />
+      <path d="M5 11a7 7 0 0 0 14 0" />
+      <path d="M12 18v3" />
+    </Stroke>
+  );
+}
