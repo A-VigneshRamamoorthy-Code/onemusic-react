@@ -1,11 +1,11 @@
 import styled from 'styled-components';
-import { rise } from '../../styles/keyframes';
+import { fadeIn, rise } from '../../styles/keyframes';
 
 export const Bar = styled.div`
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px;
+  gap: 6px;
+  padding: 6px;
   border-radius: 26px;
   border: 1px solid var(--border-default);
   background: var(--neutral-primary-soft);
@@ -16,10 +16,10 @@ export const Bar = styled.div`
   animation: ${rise} var(--dur) var(--ease-out) both;
 `;
 
-export const RoundButton = styled.button`
+export const Round = styled.button`
   flex: 0 0 auto;
-  width: 44px;
-  height: 44px;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
   display: inline-grid;
   place-items: center;
@@ -36,17 +36,33 @@ export const RoundButton = styled.button`
   }
 `;
 
+export const Middle = styled.div`
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  animation: ${fadeIn} var(--dur-quick) var(--ease-out) both;
+`;
+
+export const Spacer = styled.span`
+  flex: 1;
+  min-width: 0;
+`;
+
 export const Search = styled.div`
   flex: 1;
   min-width: 0;
   display: flex;
   align-items: center;
   gap: 8px;
-  height: 44px;
+  height: 40px;
   padding: 0 14px;
   border-radius: var(--radius-full);
   background: var(--neutral-secondary-medium);
   transition: box-shadow var(--dur-quick);
+  animation: ${fadeIn} var(--dur-quick) var(--ease-out) both;
 
   &:focus-within {
     box-shadow: 0 0 0 1px var(--brand);

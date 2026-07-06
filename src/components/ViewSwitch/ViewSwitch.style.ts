@@ -1,33 +1,38 @@
 import styled, { css } from 'styled-components';
-import { rise } from '../../styles/keyframes';
 
 export const Switch = styled.div`
   display: flex;
-  width: 100%;
-  gap: 4px;
-  padding: 5px;
-  border-radius: 22px;
-  border: 1px solid var(--border-default);
-  background: var(--neutral-primary-soft);
-  background: color-mix(in srgb, var(--neutral-primary-soft) 66%, transparent);
-  -webkit-backdrop-filter: blur(28px) saturate(1.6);
-  backdrop-filter: blur(28px) saturate(1.6);
-  box-shadow: var(--shadow-lg);
-  animation: ${rise} var(--dur) var(--ease-out) both;
+  flex: 0 1 auto;
+  min-width: 0;
+  gap: 3px;
+  padding: 4px;
+  border-radius: var(--radius-full);
+  background: var(--neutral-secondary-medium);
 `;
 
 export const Tab = styled.button<{ $active: boolean }>`
-  flex: 1;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
-  padding: 8px 12px;
+  min-width: 0;
+  padding: 7px 10px;
   border-radius: var(--radius-full);
-  font-size: 13px;
+  font-size: 12.5px;
   font-weight: 700;
   color: var(--body);
+  white-space: nowrap;
+  flex: ${(props) => (props.$active ? '0 1 auto' : '0 0 auto')};
   transition: background var(--dur-quick), color var(--dur-quick);
+
+  & svg {
+    flex: 0 0 auto;
+  }
+  & span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
 
   ${(props) =>
     props.$active

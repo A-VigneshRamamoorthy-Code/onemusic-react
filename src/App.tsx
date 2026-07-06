@@ -8,7 +8,6 @@ import { MiniPlayer } from './components/MiniPlayer';
 import { NowPlaying } from './components/NowPlaying';
 import { Settings } from './components/Settings';
 import { TabBar } from './components/TabBar';
-import { ViewSwitch } from './components/ViewSwitch';
 import { useAuth } from './hooks/useAuth';
 import { useDownloads } from './hooks/useDownloads';
 import { useLibrary } from './hooks/useLibrary';
@@ -109,10 +108,7 @@ export default function App() {
 
   let dockPad = 28;
   if (account) {
-    dockPad = 104;
-    if (hasLibraryContent) {
-      dockPad += 60;
-    }
+    dockPad = 96;
     if (activeTrack) {
       dockPad += 72;
     }
@@ -160,14 +156,11 @@ export default function App() {
                 onNext={player.playNext}
               />
             ) : null}
-            {hasLibraryContent ? (
-              <ViewSwitch
-                viewMode={library.viewMode}
-                downloadedCount={downloads.downloadedTracks.length}
-                onChange={library.setViewMode}
-              />
-            ) : null}
             <TabBar
+              hasLibraryContent={hasLibraryContent}
+              viewMode={library.viewMode}
+              downloadedCount={downloads.downloadedTracks.length}
+              onViewModeChange={library.setViewMode}
               searchTerm={library.searchTerm}
               onSearchChange={library.setSearchTerm}
               onHome={handleHome}

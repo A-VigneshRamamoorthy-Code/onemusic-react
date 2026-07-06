@@ -28,6 +28,11 @@ export const breathe = keyframes`
   50% { transform: scale(1.055); }
 `;
 
+export const fadeIn = keyframes`
+  from { opacity: 0; transform: scale(0.98); }
+  to { opacity: 1; transform: none; }
+`;
+
 export const sheen = keyframes`
   to { transform: rotate(360deg); }
 `;
