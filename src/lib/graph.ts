@@ -28,9 +28,13 @@ export async function fetchTrackContent(trackId: string, token: string): Promise
  * Fetch a track's short-lived, pre-authenticated download URL. This URL supports HTTP
  * range requests and needs no auth header, so it can be used directly as an <audio>
  * `src` for instant, progressive streaming — no full-file download before playback.
+ *
+ * IMPORTANT: we GET the item without `$select`. `@microsoft.graph.downloadUrl` is an
+ * OData annotation that Graph omits whenever `$select` is present, so selecting it
+ * returns nothing.
  */
 export async function getStreamUrl(trackId: string, token: string): Promise<string> {
-  const response = await fetch(`${GRAPH_BASE}/me/drive/items/${trackId}?$select=id,@microsoft.graph.downloadUrl`, {
+  const response = await fetch(`${GRAPH_BASE}/me/drive/items/${trackId}`, {
     headers: { Authorization: `Bearer ${token}` },
   });
   if (!response.ok) {

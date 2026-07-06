@@ -22,15 +22,15 @@ export function MiniPlayer({ track, isPlaying, progress, duration, onOpen, onTog
           <S.Sub>{track.artist}</S.Sub>
         </S.Meta>
         <S.Expand aria-hidden="true">
-          <IconChevronUp size={18} />
+          <IconChevronUp size={16} />
         </S.Expand>
       </S.Open>
       <S.Controls>
-        <IconButton onClick={onToggle} aria-label={isPlaying ? 'Pause' : 'Play'}>
-          {isPlaying ? <IconPause size={18} /> : <IconPlay size={18} />}
+        <IconButton size="sm" onClick={onToggle} aria-label={isPlaying ? 'Pause' : 'Play'}>
+          {isPlaying ? <IconPause size={16} /> : <IconPlay size={16} />}
         </IconButton>
-        <IconButton onClick={onNext} aria-label="Next track">
-          <IconNext size={20} />
+        <IconButton size="sm" onClick={onNext} aria-label="Next track">
+          <IconNext size={18} />
         </IconButton>
       </S.Controls>
     </S.Player>

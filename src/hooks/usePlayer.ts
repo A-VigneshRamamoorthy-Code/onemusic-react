@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ChangeEvent, RefObject } from 'react';
 import { PREFETCH_WINDOW, STREAM_URL_TTL_MS } from '../config/constants';
-import { getStreamUrl } from '../lib/graph';
+import { fetchTrackContent, getStreamUrl } from '../lib/graph';
 import { getTrackBlob } from '../lib/offline';
 import { getErrorMessage } from '../utils/errors';
 import type { MsalAccount, Track } from '../types';
@@ -54,6 +54,7 @@ export function usePlayer({
   const activeIdRef = useRef<string | null>(activeTrackId);
   const playRequestRef = useRef(0);
   const retriedRef = useRef<Set<string>>(new Set());
+  const forceBlobRef = useRef<Set<string>>(new Set());
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -86,10 +87,10 @@ export function usePlayer({
   }, []);
 
   /**
-   * Resolve a URL the <audio> element can play. Offline/downloaded tracks use a local
-   * blob object URL; everything else streams from OneDrive's short-lived, pre-authed
-   * download URL (range-request capable) so playback starts immediately instead of
-   * waiting for the whole file to download.
+   * Resolve a URL the <audio> element can play. Order: local blob (downloaded) →
+   * OneDrive stream URL (range-request capable, instant start) → full download blob as
+   * a fallback if streaming isn't available. `forceBlobRef` pins a track to the blob
+   * path after a stream error.
    */
   const resolvePlaybackUrl = useCallback(
     async (track: Track): Promise<string> => {
@@ -115,14 +116,30 @@ export function usePlayer({
         return url;
       }
 
-      const streamCache = streamUrlCacheRef.current;
-      const cachedStream = streamCache.get(track.id);
-      if (cachedStream && Date.now() - cachedStream.ts < STREAM_URL_TTL_MS) {
-        return cachedStream.url;
-      }
       const token = await ensureAccessToken();
-      const url = await getStreamUrl(track.id, token);
-      streamCache.set(track.id, { url, ts: Date.now() });
+
+      if (!forceBlobRef.current.has(track.id)) {
+        const streamCache = streamUrlCacheRef.current;
+        const cachedStream = streamCache.get(track.id);
+        if (cachedStream && Date.now() - cachedStream.ts < STREAM_URL_TTL_MS) {
+          return cachedStream.url;
+        }
+        try {
+          const url = await getStreamUrl(track.id, token);
+          streamCache.set(track.id, { url, ts: Date.now() });
+          return url;
+        } catch {
+          /* streaming unavailable — fall back to a full download below */
+        }
+      }
+
+      const downloaded = await fetchTrackContent(track.id, token);
+      const cachedNow = blobCache.get(track.id);
+      if (cachedNow) {
+        return cachedNow;
+      }
+      const url = URL.createObjectURL(downloaded);
+      blobCache.set(track.id, url);
       return url;
     },
     [ensureAccessToken],
@@ -161,8 +178,8 @@ export function usePlayer({
   );
 
   /**
-   * The <audio> element errored. A stream URL may have expired — drop the cached URL
-   * and retry the active track once.
+   * The <audio> element errored. A stream URL may have expired or been blocked — pin
+   * the track to a full download and retry once so it still plays.
    */
   const handleError = useCallback(() => {
     const id = activeIdRef.current;
@@ -175,6 +192,7 @@ export function usePlayer({
     }
     retriedRef.current.add(id);
     streamUrlCacheRef.current.delete(id);
+    forceBlobRef.current.add(id);
     void playTrack(track);
   }, [playTrack]);
 
@@ -315,6 +333,7 @@ export function usePlayer({
     blobUrlCacheRef.current.clear();
     streamUrlCacheRef.current.clear();
     retriedRef.current.clear();
+    forceBlobRef.current.clear();
   }, [setActiveTrackId]);
 
   return {

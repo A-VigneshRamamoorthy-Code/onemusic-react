@@ -5,15 +5,15 @@ export const Player = styled.div`
   position: relative;
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 10px 10px;
-  border-radius: 28px;
+  gap: 6px;
+  padding: 5px 8px 7px;
+  border-radius: 22px;
   border: 1px solid var(--border-default);
   background: var(--neutral-primary-soft);
-  background: color-mix(in srgb, var(--neutral-primary-soft) 66%, transparent);
+  background: color-mix(in srgb, var(--neutral-primary-soft) 68%, transparent);
   -webkit-backdrop-filter: blur(28px) saturate(1.6);
   backdrop-filter: blur(28px) saturate(1.6);
-  box-shadow: var(--shadow-lg);
+  box-shadow: var(--shadow-md);
   overflow: hidden;
   animation: ${rise} var(--dur) var(--ease-out) both;
 `;
@@ -23,7 +23,7 @@ export const Bar = styled.span`
   bottom: 0;
   left: 0;
   right: 0;
-  height: 3px;
+  height: 2.5px;
   background: var(--neutral-secondary-medium);
 `;
 
@@ -36,10 +36,10 @@ export const BarFill = styled.span`
 `;
 
 export const Art = styled.span`
-  width: 44px;
-  height: 44px;
+  width: 36px;
+  height: 36px;
   flex: 0 0 auto;
-  border-radius: 14px;
+  border-radius: 11px;
   overflow: hidden;
   box-shadow: var(--shadow-sm);
 `;
@@ -51,7 +51,7 @@ export const Meta = styled.span`
 `;
 
 export const Title = styled.span`
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 700;
   color: var(--heading);
   white-space: nowrap;
@@ -60,7 +60,7 @@ export const Title = styled.span`
 `;
 
 export const Sub = styled.span`
-  font-size: 12px;
+  font-size: 11px;
   color: var(--body-subtle);
   white-space: nowrap;
   overflow: hidden;
@@ -80,8 +80,8 @@ export const Open = styled.button`
   min-width: 0;
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 4px;
+  gap: 10px;
+  padding: 3px;
   border-radius: var(--radius-default);
   text-align: left;
   transition: background var(--dur-quick);
@@ -97,6 +97,6 @@ export const Open = styled.button`
 export const Controls = styled.div`
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 2px;
   flex: 0 0 auto;
 `;

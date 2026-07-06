@@ -108,9 +108,9 @@ export default function App() {
 
   let dockPad = 28;
   if (account) {
-    dockPad = 96;
+    dockPad = 112;
     if (activeTrack) {
-      dockPad += 72;
+      dockPad += 62;
     }
   }
 
@@ -159,7 +159,6 @@ export default function App() {
             <TabBar
               hasLibraryContent={hasLibraryContent}
               viewMode={library.viewMode}
-              downloadedCount={downloads.downloadedTracks.length}
               onViewModeChange={library.setViewMode}
               searchTerm={library.searchTerm}
               onSearchChange={library.setSearchTerm}
