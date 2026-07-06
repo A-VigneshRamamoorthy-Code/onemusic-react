@@ -104,15 +104,18 @@ Music–flavoured single-page app deployed to **GitHub Pages**.
 - **Library cache:** the synced track list (metadata) is saved to localStorage per
   folder (`lib/trackCache.ts`) and loaded on sign-in/reload, so it shows instantly.
 
-## Deploy flow
-1. `npm run build` → `docs/`.
-2. `touch docs/.nojekyll`.
-3. Commit as author **"Vignesh Ramamoorthy"** with trailer
-   `Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>`.
-4. `git push origin main` (HTTPS; keychain creds).
-5. GitHub Pages builds from `main` `/docs` (legacy builder). Normal builds finish in
-   ~20s; occasionally they stall for minutes — a follow-up push recovers them. Poll
-   the live URL for the new `index-<hash>.js` bundle.
+## Deploy flow (CI)
+- Deployment is automated: **pushing to `main` triggers
+  `.github/workflows/deploy.yml`**, which runs `npm ci` + `npm run build` and
+  deploys `docs/` to **GitHub Pages** via `actions/deploy-pages` (Pages source =
+  "GitHub Actions", not the legacy branch builder).
+- `docs/` is **gitignored** — it's a build artifact produced in CI. Don't commit it.
+- To ship: commit source changes as author **"Vignesh Ramamoorthy"** with trailer
+  `Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>`, then
+  `git push origin main`. Watch the run in the repo's Actions tab; poll the live URL
+  for the new `index-<hash>.js` bundle.
+- You can still build locally to verify (`npm run build` → `docs/`), but you no
+  longer need to commit `docs/` or `touch .nojekyll`.
 
 ## Validating without a Microsoft account (demo seed)
 Real OneDrive audio/sign-in can't be exercised in CI/agents. To validate the
