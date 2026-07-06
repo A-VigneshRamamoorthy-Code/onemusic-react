@@ -6,3 +6,5 @@ dist/
 # Playwright validation artifacts
 .playwright-mcp/
 ms-login.png
+page-*.png
+refactor-*.png
