@@ -18,6 +18,15 @@ export const GRAPH_BASE = 'https://graph.microsoft.com/v1.0';
 
 export const FOLDER_PATH_STORAGE_KEY = 'onemusic.folderPath';
 
+/** Prefix for the per-folder cached track list (persists the library across reloads). */
+export const TRACKS_CACHE_PREFIX = 'onemusic.tracks.';
+
+/**
+ * How long a streamed OneDrive download URL is treated as valid before we re-resolve it.
+ * The real URLs live ~1 hour; we refresh well before that.
+ */
+export const STREAM_URL_TTL_MS = 45 * 60 * 1000;
+
 /** How many neighbours on each side of the active track to prefetch. */
 export const PREFETCH_WINDOW = 2;
 

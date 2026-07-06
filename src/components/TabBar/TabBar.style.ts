@@ -4,7 +4,7 @@ import { fadeIn, rise } from '../../styles/keyframes';
 export const Bar = styled.div`
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   padding: 6px;
   border-radius: 26px;
   border: 1px solid var(--border-default);
@@ -16,48 +16,56 @@ export const Bar = styled.div`
   animation: ${rise} var(--dur) var(--ease-out) both;
 `;
 
-export const Round = styled.button`
-  flex: 0 0 auto;
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
+/** Equal-width, equal-height dock icon. Every item shares the same footprint. */
+export const IconBtn = styled.button<{ $active?: boolean; $fixed?: boolean }>`
+  position: relative;
+  flex: ${(props) => (props.$fixed ? '0 0 46px' : '1 1 0')};
+  min-width: 0;
+  height: 46px;
+  border-radius: var(--radius-full);
   display: inline-grid;
   place-items: center;
-  color: var(--heading);
-  background: var(--neutral-secondary-medium);
+  color: ${(props) => (props.$active ? 'var(--fg-brand)' : 'var(--heading)')};
+  background: ${(props) => (props.$active ? 'var(--brand-softer)' : 'transparent')};
   transition: background var(--dur-quick), color var(--dur-quick), transform var(--dur-quick);
 
   &:hover {
-    background: var(--neutral-tertiary-medium);
-    color: var(--fg-brand);
+    background: ${(props) => (props.$active ? 'var(--brand-soft)' : 'var(--neutral-secondary-medium)')};
+    color: ${(props) => (props.$active ? 'var(--fg-brand)' : 'var(--fg-brand)')};
   }
   &:active {
-    transform: scale(0.92);
+    transform: scale(0.9);
+  }
+
+  & svg {
+    display: block;
   }
 `;
 
-export const Middle = styled.div`
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  animation: ${fadeIn} var(--dur-quick) var(--ease-out) both;
-`;
-
-export const Spacer = styled.span`
-  flex: 1;
-  min-width: 0;
+export const Badge = styled.span`
+  position: absolute;
+  top: 5px;
+  left: 55%;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--brand);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 16px;
+  text-align: center;
+  box-shadow: 0 0 0 2px var(--neutral-primary-soft);
 `;
 
 export const Search = styled.div`
-  flex: 1;
+  flex: 1 1 auto;
   min-width: 0;
   display: flex;
   align-items: center;
   gap: 8px;
-  height: 40px;
+  height: 46px;
   padding: 0 14px;
   border-radius: var(--radius-full);
   background: var(--neutral-secondary-medium);

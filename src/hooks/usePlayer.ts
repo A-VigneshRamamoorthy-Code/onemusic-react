@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ChangeEvent, RefObject } from 'react';
-import { PREFETCH_WINDOW } from '../config/constants';
-import { fetchTrackContent } from '../lib/graph';
+import { PREFETCH_WINDOW, STREAM_URL_TTL_MS } from '../config/constants';
+import { getStreamUrl } from '../lib/graph';
 import { getTrackBlob } from '../lib/offline';
 import { getErrorMessage } from '../utils/errors';
 import type { MsalAccount, Track } from '../types';
@@ -29,6 +29,7 @@ export interface UsePlayerResult {
   handleTimeUpdate: () => void;
   handlePlay: () => void;
   handlePause: () => void;
+  handleError: () => void;
   resume: () => Promise<void>;
   pause: () => void;
   reset: () => void;
@@ -47,9 +48,12 @@ export function usePlayer({
   setStatus,
 }: UsePlayerParams): UsePlayerResult {
   const audioRef = useRef<HTMLAudioElement>(null);
-  const cacheRef = useRef<Map<string, string>>(new Map());
+  const blobUrlCacheRef = useRef<Map<string, string>>(new Map());
+  const streamUrlCacheRef = useRef<Map<string, { url: string; ts: number }>>(new Map());
   const orderedRef = useRef<Track[]>(orderedTracks);
   const activeIdRef = useRef<string | null>(activeTrackId);
+  const playRequestRef = useRef(0);
+  const retriedRef = useRef<Set<string>>(new Set());
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -74,36 +78,51 @@ export function usePlayer({
   }, [activeTrackId]);
 
   useEffect(() => {
-    const cache = cacheRef.current;
+    const blobCache = blobUrlCacheRef.current;
     return () => {
-      cache.forEach((url) => URL.revokeObjectURL(url));
-      cache.clear();
+      blobCache.forEach((url) => URL.revokeObjectURL(url));
+      blobCache.clear();
     };
   }, []);
 
-  const resolveObjectUrl = useCallback(
+  /**
+   * Resolve a URL the <audio> element can play. Offline/downloaded tracks use a local
+   * blob object URL; everything else streams from OneDrive's short-lived, pre-authed
+   * download URL (range-request capable) so playback starts immediately instead of
+   * waiting for the whole file to download.
+   */
+  const resolvePlaybackUrl = useCallback(
     async (track: Track): Promise<string> => {
-      const cache = cacheRef.current;
-      const existing = cache.get(track.id);
-      if (existing) {
-        return existing;
+      const blobCache = blobUrlCacheRef.current;
+      const existingBlobUrl = blobCache.get(track.id);
+      if (existingBlobUrl) {
+        return existingBlobUrl;
       }
+
       let blob: Blob | null = null;
       try {
         blob = await getTrackBlob(track.id);
       } catch {
         blob = null;
       }
-      if (!blob) {
-        const token = await ensureAccessToken();
-        blob = await fetchTrackContent(track.id, token);
+      if (blob) {
+        const cached = blobCache.get(track.id);
+        if (cached) {
+          return cached;
+        }
+        const url = URL.createObjectURL(blob);
+        blobCache.set(track.id, url);
+        return url;
       }
-      const cached = cache.get(track.id);
-      if (cached) {
-        return cached;
+
+      const streamCache = streamUrlCacheRef.current;
+      const cachedStream = streamCache.get(track.id);
+      if (cachedStream && Date.now() - cachedStream.ts < STREAM_URL_TTL_MS) {
+        return cachedStream.url;
       }
-      const url = URL.createObjectURL(blob);
-      cache.set(track.id, url);
+      const token = await ensureAccessToken();
+      const url = await getStreamUrl(track.id, token);
+      streamCache.set(track.id, { url, ts: Date.now() });
       return url;
     },
     [ensureAccessToken],
@@ -111,27 +130,53 @@ export function usePlayer({
 
   const playTrack = useCallback(
     async (track: Track) => {
+      const requestId = playRequestRef.current + 1;
+      playRequestRef.current = requestId;
       setActiveTrackId(track.id);
-      if (!cacheRef.current.has(track.id)) {
-        setStatus(`Preparing ${track.title}…`);
-      }
+      setStatus(`Loading ${track.title}…`);
       try {
-        const objectUrl = await resolveObjectUrl(track);
+        const url = await resolvePlaybackUrl(track);
+        // A newer selection happened while we were resolving — abandon this one so the
+        // title and audio never disagree.
+        if (playRequestRef.current !== requestId) {
+          return;
+        }
         const audio = audioRef.current;
         if (audio) {
-          audio.src = objectUrl;
+          audio.src = url;
           audio.load();
           await audio.play();
           setIsPlaying(true);
         }
+        retriedRef.current.delete(track.id);
         setStatus(`Playing ${track.title}`);
         setDuration(audioRef.current?.duration || 0);
       } catch (error) {
-        setStatus(`Playback failed: ${getErrorMessage(error)}`);
+        if (playRequestRef.current === requestId) {
+          setStatus(`Playback failed: ${getErrorMessage(error)}`);
+        }
       }
     },
-    [resolveObjectUrl, setActiveTrackId, setStatus],
+    [resolvePlaybackUrl, setActiveTrackId, setStatus],
   );
+
+  /**
+   * The <audio> element errored. A stream URL may have expired — drop the cached URL
+   * and retry the active track once.
+   */
+  const handleError = useCallback(() => {
+    const id = activeIdRef.current;
+    if (!id || retriedRef.current.has(id)) {
+      return;
+    }
+    const track = orderedRef.current.find((item) => item.id === id);
+    if (!track) {
+      return;
+    }
+    retriedRef.current.add(id);
+    streamUrlCacheRef.current.delete(id);
+    void playTrack(track);
+  }, [playTrack]);
 
   const playNext = useCallback(() => {
     const list = orderedRef.current;
@@ -244,28 +289,15 @@ export function usePlayer({
     if (index === -1) {
       return;
     }
-    const windowIds = new Set<string>();
+    // Pre-resolve stream URLs (or blob URLs) for the neighbours so next/previous start
+    // instantly. These are cheap (a small JSON request), not full downloads.
     for (let offset = -PREFETCH_WINDOW; offset <= PREFETCH_WINDOW; offset += 1) {
       const track = list[index + offset];
       if (track) {
-        windowIds.add(track.id);
+        resolvePlaybackUrl(track).catch(() => {});
       }
     }
-    windowIds.forEach((id) => {
-      if (!cacheRef.current.has(id)) {
-        const track = list.find((item) => item.id === id);
-        if (track) {
-          resolveObjectUrl(track).catch(() => {});
-        }
-      }
-    });
-    cacheRef.current.forEach((url, id) => {
-      if (!windowIds.has(id)) {
-        URL.revokeObjectURL(url);
-        cacheRef.current.delete(id);
-      }
-    });
-  }, [activeTrackId, orderedTracks, resolveObjectUrl]);
+  }, [activeTrackId, orderedTracks, resolvePlaybackUrl]);
 
   const reset = useCallback(() => {
     const audio = audioRef.current;
@@ -274,12 +306,15 @@ export function usePlayer({
       audio.removeAttribute('src');
       audio.load();
     }
+    playRequestRef.current += 1;
     setIsPlaying(false);
     setProgress(0);
     setDuration(0);
     setActiveTrackId(null);
-    cacheRef.current.forEach((url) => URL.revokeObjectURL(url));
-    cacheRef.current.clear();
+    blobUrlCacheRef.current.forEach((url) => URL.revokeObjectURL(url));
+    blobUrlCacheRef.current.clear();
+    streamUrlCacheRef.current.clear();
+    retriedRef.current.clear();
   }, [setActiveTrackId]);
 
   return {
@@ -297,6 +332,7 @@ export function usePlayer({
     handleTimeUpdate,
     handlePlay,
     handlePause,
+    handleError,
     resume,
     pause,
     reset,

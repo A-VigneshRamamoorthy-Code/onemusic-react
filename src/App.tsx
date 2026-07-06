@@ -221,6 +221,7 @@ export default function App() {
           onEnded={player.playNext}
           onPause={player.handlePause}
           onPlay={player.handlePlay}
+          onError={player.handleError}
         />
       </S.AppShell>
     </>

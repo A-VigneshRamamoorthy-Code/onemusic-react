@@ -1,10 +1,19 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import { FOLDER_PATH_STORAGE_KEY } from '../config/constants';
 import { walkDriveNode } from '../lib/graph';
+import { loadCachedTracks, saveCachedTracks } from '../lib/trackCache';
 import { getErrorMessage } from '../utils/errors';
 import { buildFolderRoute, folderLabel, normalizeFolderPath } from '../utils/tracks';
 import type { AlbumGroup, DownloadedTrackMeta, MsalAccount, Track, ViewMode } from '../types';
+
+function readInitialFolderPath(): string {
+  try {
+    return localStorage.getItem(FOLDER_PATH_STORAGE_KEY) || '';
+  } catch {
+    return '';
+  }
+}
 
 export interface UseLibraryParams {
   account: MsalAccount | null;
@@ -50,18 +59,30 @@ export function useLibrary({
   downloadedTracks,
   setActiveTrackId,
 }: UseLibraryParams): UseLibraryResult {
-  const [tracks, setTracks] = useState<Track[]>([]);
-  const [folderPath, setFolderPath] = useState<string>(() => {
-    try {
-      return localStorage.getItem(FOLDER_PATH_STORAGE_KEY) || '';
-    } catch {
-      return '';
-    }
-  });
+  const [tracks, setTracks] = useState<Track[]>(() => loadCachedTracks(readInitialFolderPath()) || []);
+  const [folderPath, setFolderPath] = useState<string>(readInitialFolderPath);
   const [viewMode, setViewMode] = useState<ViewMode>('songs');
   const [searchTerm, setSearchTerm] = useState('');
   const [isSyncOpen, setSyncOpen] = useState(true);
   const scanIdRef = useRef(0);
+  const cacheLoadedRef = useRef(false);
+
+  // When the user signs in (or the account is restored on reload), show the cached
+  // track list immediately so the library survives reloads like downloaded songs do.
+  useEffect(() => {
+    if (!account) {
+      cacheLoadedRef.current = false;
+      return;
+    }
+    if (cacheLoadedRef.current) {
+      return;
+    }
+    cacheLoadedRef.current = true;
+    const cached = loadCachedTracks(folderPath);
+    if (cached && cached.length) {
+      setTracks((previous) => (previous.length ? previous : cached));
+    }
+  }, [account, folderPath]);
 
   const visibleTracks = useMemo(() => {
     const query = searchTerm.trim().toLowerCase();
@@ -129,6 +150,7 @@ export function useLibrary({
       setStatus(`Scanning ${label}…`);
 
       const seen = new Set<string>();
+      const collected: Track[] = [];
       let count = 0;
 
       try {
@@ -145,6 +167,7 @@ export function useLibrary({
               return;
             }
             fresh.forEach((track) => seen.add(track.id));
+            collected.push(...fresh);
             count += fresh.length;
             setTracks((previous) => {
               const merged = previous.concat(fresh);
@@ -164,6 +187,8 @@ export function useLibrary({
           count ? `Loaded ${count} audio file${count === 1 ? '' : 's'} from ${label}.` : `No audio files found in ${label}.`,
         );
         if (count) {
+          collected.sort((left, right) => left.title.localeCompare(right.title));
+          saveCachedTracks(rawPath, collected);
           setSyncOpen(false);
         }
       } catch (error) {

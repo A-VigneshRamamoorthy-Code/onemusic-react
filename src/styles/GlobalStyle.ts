@@ -114,8 +114,8 @@ export const GlobalStyle = createGlobalStyle`
   body {
     font-family: 'Lato', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     background:
-      radial-gradient(1200px 600px at 12% -10%, rgb(250 45 72 / 0.16), transparent 60%),
-      radial-gradient(900px 500px at 100% 0%, rgb(255 122 89 / 0.10), transparent 55%),
+      radial-gradient(1200px 600px at 12% -10%, color-mix(in srgb, var(--brand) 20%, transparent), transparent 60%),
+      radial-gradient(900px 500px at 100% 0%, color-mix(in srgb, var(--brand-strong) 12%, transparent), transparent 55%),
       var(--neutral-secondary-soft);
     background-attachment: fixed;
     color: var(--body);

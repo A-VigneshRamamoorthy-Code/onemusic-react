@@ -11,7 +11,6 @@ export function AppHeader({ account, onSignIn }: AppHeaderProps) {
           <IconMusic size={22} />
         </S.Mark>
         <S.BrandText>
-          <S.Eyebrow>Microsoft OneDrive</S.Eyebrow>
           <S.Title>OneMusic</S.Title>
         </S.BrandText>
       </S.Brand>

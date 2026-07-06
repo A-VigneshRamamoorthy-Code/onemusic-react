@@ -25,6 +25,29 @@ export async function fetchTrackContent(trackId: string, token: string): Promise
 }
 
 /**
+ * Fetch a track's short-lived, pre-authenticated download URL. This URL supports HTTP
+ * range requests and needs no auth header, so it can be used directly as an <audio>
+ * `src` for instant, progressive streaming — no full-file download before playback.
+ */
+export async function getStreamUrl(trackId: string, token: string): Promise<string> {
+  const response = await fetch(`${GRAPH_BASE}/me/drive/items/${trackId}?$select=id,@microsoft.graph.downloadUrl`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) {
+    throw new Error(`Could not resolve stream URL (status ${response.status})`);
+  }
+  const data = (await response.json()) as {
+    '@microsoft.graph.downloadUrl'?: string;
+    '@content.downloadUrl'?: string;
+  };
+  const url = data['@microsoft.graph.downloadUrl'] || data['@content.downloadUrl'];
+  if (!url) {
+    throw new Error('No streamable download URL for this track');
+  }
+  return url;
+}
+
+/**
  * Recursively scan a OneDrive folder, invoking `onBatch` with audio tracks as they
  * are discovered so the UI can stream results. Honours `@odata.nextLink` pagination
  * and stops early when `shouldStop` returns true.

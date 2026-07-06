@@ -1,14 +1,13 @@
 import { useRef, useState } from 'react';
 import type { KeyboardEvent } from 'react';
-import { IconClose, IconHome, IconSearch, IconSettings } from '../Icon';
-import { ViewSwitch } from '../ViewSwitch';
+import { IconAlbum, IconClose, IconDownload, IconHome, IconList, IconSearch, IconSettings } from '../Icon';
 import type { TabBarProps } from './TabBar.types';
 import * as S from './TabBar.style';
 
 /**
- * Floating dock control bar. Menu mode shows Home + the Songs/Albums/Offline switch +
- * Settings, with a Search button at the end. Tapping Search swaps the menu for a search
- * field and turns the end button into Close.
+ * Floating dock of equally sized, evenly spaced icons: Home, the Songs/Albums/Offline
+ * views, Settings and Search. Tapping Search swaps the icons for a search field with a
+ * Close button; Close restores the icons.
  */
 export function TabBar({
   hasLibraryContent,
@@ -41,13 +40,12 @@ export function TabBar({
     }
   };
 
-  return (
-    <S.Bar>
-      <S.Round type="button" onClick={onHome} aria-label="Home">
-        <IconHome size={20} />
-      </S.Round>
-
-      {isSearchOpen ? (
+  if (isSearchOpen) {
+    return (
+      <S.Bar>
+        <S.IconBtn type="button" $fixed onClick={onHome} aria-label="Home">
+          <IconHome size={22} />
+        </S.IconBtn>
         <S.Search>
           <S.SearchIcon aria-hidden="true">
             <IconSearch size={18} />
@@ -62,29 +60,60 @@ export function TabBar({
             onKeyDown={handleKeyDown}
           />
         </S.Search>
-      ) : (
-        <S.Middle>
-          {hasLibraryContent ? (
-            <ViewSwitch viewMode={viewMode} downloadedCount={downloadedCount} onChange={onViewModeChange} />
-          ) : (
-            <S.Spacer />
-          )}
-          <S.Round type="button" onClick={onOpenSettings} aria-label="Settings">
-            <IconSettings size={20} />
-          </S.Round>
-        </S.Middle>
-      )}
+        <S.IconBtn type="button" $fixed onClick={closeSearch} aria-label="Close search">
+          <IconClose size={22} />
+        </S.IconBtn>
+      </S.Bar>
+    );
+  }
 
-      {hasLibraryContent || isSearchOpen ? (
-        isSearchOpen ? (
-          <S.Round type="button" onClick={closeSearch} aria-label="Close search">
-            <IconClose size={20} />
-          </S.Round>
-        ) : (
-          <S.Round type="button" onClick={openSearch} aria-label="Search">
-            <IconSearch size={20} />
-          </S.Round>
-        )
+  return (
+    <S.Bar>
+      <S.IconBtn type="button" onClick={onHome} aria-label="Home">
+        <IconHome size={22} />
+      </S.IconBtn>
+
+      {hasLibraryContent ? (
+        <>
+          <S.IconBtn
+            type="button"
+            $active={viewMode === 'songs'}
+            aria-label="Songs"
+            aria-pressed={viewMode === 'songs'}
+            onClick={() => onViewModeChange('songs')}
+          >
+            <IconList size={22} />
+          </S.IconBtn>
+          <S.IconBtn
+            type="button"
+            $active={viewMode === 'albums'}
+            aria-label="Albums"
+            aria-pressed={viewMode === 'albums'}
+            onClick={() => onViewModeChange('albums')}
+          >
+            <IconAlbum size={22} />
+          </S.IconBtn>
+          <S.IconBtn
+            type="button"
+            $active={viewMode === 'downloaded'}
+            aria-label={`Offline${downloadedCount ? ` (${downloadedCount})` : ''}`}
+            aria-pressed={viewMode === 'downloaded'}
+            onClick={() => onViewModeChange('downloaded')}
+          >
+            <IconDownload size={22} />
+            {downloadedCount ? <S.Badge>{downloadedCount}</S.Badge> : null}
+          </S.IconBtn>
+        </>
+      ) : null}
+
+      <S.IconBtn type="button" onClick={onOpenSettings} aria-label="Settings">
+        <IconSettings size={22} />
+      </S.IconBtn>
+
+      {hasLibraryContent ? (
+        <S.IconBtn type="button" onClick={openSearch} aria-label="Search">
+          <IconSearch size={22} />
+        </S.IconBtn>
       ) : null}
     </S.Bar>
   );
