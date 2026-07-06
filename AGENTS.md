@@ -116,6 +116,12 @@ Music–flavoured single-page app deployed to **GitHub Pages**.
   for the new `index-<hash>.js` bundle.
 - You can still build locally to verify (`npm run build` → `docs/`), but you no
   longer need to commit `docs/` or `touch .nojekyll`.
+- **Visibility:** the account is on **GitHub Free**, where **Pages requires a public
+  repo**. Keep OneMusic public, or Pages/the deploy will stop working. (Making it
+  private needs GitHub Pro/Team/Enterprise; alternatively host from a private repo on
+  Netlify/Vercel/Cloudflare Pages.) The `origin` remote embeds the username
+  (`https://A-VigneshRamamoorthy-Code@github.com/...`) so git uses the
+  `repo`+`workflow`-scoped token (editing workflow files needs the `workflow` scope).
 
 ## Validating without a Microsoft account (demo seed)
 Real OneDrive audio/sign-in can't be exercised in CI/agents. To validate the
