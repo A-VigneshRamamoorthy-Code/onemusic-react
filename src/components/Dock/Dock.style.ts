@@ -8,16 +8,16 @@ export const Dock = styled.div`
   z-index: 40;
   display: flex;
   justify-content: center;
-  padding: 0 12px calc(12px + env(safe-area-inset-bottom));
+  padding: 0 16px calc(6px + env(safe-area-inset-bottom));
   pointer-events: none;
 `;
 
 export const Inner = styled.div`
   width: 100%;
-  max-width: 680px;
+  max-width: 600px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
 
   & > * {
     pointer-events: auto;

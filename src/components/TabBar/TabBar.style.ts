@@ -6,8 +6,8 @@ export const Bar = styled.div`
   display: flex;
   align-items: center;
   gap: 4px;
-  padding: 8px;
-  border-radius: 30px;
+  padding: 6px;
+  border-radius: 28px;
   border: 1px solid var(--border-default);
   background: var(--neutral-primary-soft);
   background: color-mix(in srgb, var(--neutral-primary-soft) 68%, transparent);
@@ -20,27 +20,24 @@ export const Bar = styled.div`
 /** Sliding highlight pill that animates to the active view icon. */
 export const Indicator = styled.span`
   position: absolute;
-  top: 8px;
-  bottom: 8px;
+  top: 6px;
+  bottom: 6px;
   left: 0;
   z-index: 0;
   border-radius: var(--radius-full);
   background: var(--brand-softer);
+  opacity: 0;
   pointer-events: none;
-  transition: transform var(--dur) var(--ease-out), width var(--dur) var(--ease-out);
-
-  @media (prefers-reduced-motion: reduce) {
-    transition: none;
-  }
+  transition: transform var(--dur) var(--ease-out), width var(--dur) var(--ease-out), opacity var(--dur-quick);
 `;
 
 /** Equal-width, equal-height dock icon. Every item shares the same footprint. */
 export const IconBtn = styled.button<{ $active?: boolean; $fixed?: boolean }>`
   position: relative;
   z-index: 1;
-  flex: ${(props) => (props.$fixed ? '0 0 56px' : '1 1 0')};
+  flex: ${(props) => (props.$fixed ? '0 0 50px' : '1 1 0')};
   min-width: 0;
-  height: 56px;
+  height: 50px;
   border-radius: var(--radius-full);
   display: inline-grid;
   place-items: center;
@@ -66,7 +63,7 @@ export const Search = styled.div`
   display: flex;
   align-items: center;
   gap: 8px;
-  height: 56px;
+  height: 50px;
   padding: 0 16px;
   border-radius: var(--radius-full);
   background: var(--neutral-secondary-medium);

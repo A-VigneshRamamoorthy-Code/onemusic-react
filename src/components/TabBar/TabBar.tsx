@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { KeyboardEvent } from 'react';
 import { IconAlbum, IconClose, IconDownload, IconHome, IconSearch, IconSettings } from '../Icon';
 import type { ViewMode } from '../../types';
@@ -21,8 +21,8 @@ export function TabBar({
 }: TabBarProps) {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const indicatorRef = useRef<HTMLSpanElement>(null);
   const viewRefs = useRef<Partial<Record<ViewMode, HTMLButtonElement | null>>>({});
-  const [indicator, setIndicator] = useState<{ left: number; width: number } | null>(null);
 
   const openSearch = () => {
     setIsSearchOpen(true);
@@ -42,30 +42,33 @@ export function TabBar({
     }
   };
 
-  const positionIndicator = () => {
-    if (isSearchOpen || !hasLibraryContent) {
-      setIndicator(null);
+  // Position the sliding pill imperatively so switching tabs animates reliably (setting
+  // the element's own transform/width lets the CSS transition run without a React churn).
+  const positionIndicator = useCallback(() => {
+    const indicator = indicatorRef.current;
+    const button = viewRefs.current[viewMode];
+    if (!indicator || !button) {
       return;
     }
-    const button = viewRefs.current[viewMode];
-    if (button) {
-      setIndicator({ left: button.offsetLeft, width: button.offsetWidth });
-    }
-  };
+    indicator.style.width = `${button.offsetWidth}px`;
+    indicator.style.transform = `translateX(${button.offsetLeft}px)`;
+    indicator.style.opacity = '1';
+  }, [viewMode]);
 
-  useLayoutEffect(positionIndicator, [viewMode, isSearchOpen, hasLibraryContent]);
+  useLayoutEffect(() => {
+    positionIndicator();
+  }, [positionIndicator, hasLibraryContent, isSearchOpen]);
 
   useEffect(() => {
     window.addEventListener('resize', positionIndicator);
     return () => window.removeEventListener('resize', positionIndicator);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [viewMode, isSearchOpen, hasLibraryContent]);
+  }, [positionIndicator]);
 
   if (isSearchOpen) {
     return (
       <S.Bar>
         <S.IconBtn type="button" $fixed onClick={onHome} aria-label="Home">
-          <IconHome size={24} />
+          <IconHome size={26} />
         </S.IconBtn>
         <S.Search>
           <S.SearchIcon aria-hidden="true">
@@ -82,7 +85,7 @@ export function TabBar({
           />
         </S.Search>
         <S.IconBtn type="button" $fixed onClick={closeSearch} aria-label="Close search">
-          <IconClose size={24} />
+          <IconClose size={26} />
         </S.IconBtn>
       </S.Bar>
     );
@@ -90,9 +93,7 @@ export function TabBar({
 
   return (
     <S.Bar>
-      {indicator ? (
-        <S.Indicator aria-hidden="true" style={{ transform: `translateX(${indicator.left}px)`, width: indicator.width }} />
-      ) : null}
+      {hasLibraryContent ? <S.Indicator ref={indicatorRef} aria-hidden="true" /> : null}
 
       <S.IconBtn
         ref={(element) => {
@@ -104,7 +105,7 @@ export function TabBar({
         aria-pressed={viewMode === 'songs'}
         onClick={onHome}
       >
-        <IconHome size={24} />
+        <IconHome size={26} />
       </S.IconBtn>
 
       {hasLibraryContent ? (
@@ -119,7 +120,7 @@ export function TabBar({
             aria-pressed={viewMode === 'albums'}
             onClick={() => onViewModeChange('albums')}
           >
-            <IconAlbum size={24} />
+            <IconAlbum size={26} />
           </S.IconBtn>
           <S.IconBtn
             ref={(element) => {
@@ -131,18 +132,18 @@ export function TabBar({
             aria-pressed={viewMode === 'downloaded'}
             onClick={() => onViewModeChange('downloaded')}
           >
-            <IconDownload size={24} />
+            <IconDownload size={26} />
           </S.IconBtn>
         </>
       ) : null}
 
       <S.IconBtn type="button" onClick={onOpenSettings} aria-label="Settings">
-        <IconSettings size={24} />
+        <IconSettings size={26} />
       </S.IconBtn>
 
       {hasLibraryContent ? (
         <S.IconBtn type="button" onClick={openSearch} aria-label="Search">
-          <IconSearch size={24} />
+          <IconSearch size={26} />
         </S.IconBtn>
       ) : null}
     </S.Bar>

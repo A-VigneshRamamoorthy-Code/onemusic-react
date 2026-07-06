@@ -106,11 +106,11 @@ export default function App() {
     }
   }, [account, isLoading, hasLibraryContent]);
 
-  let dockPad = 28;
+  let dockPad = 24;
   if (account) {
-    dockPad = 112;
+    dockPad = 90;
     if (activeTrack) {
-      dockPad += 62;
+      dockPad += 58;
     }
   }
 

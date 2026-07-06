@@ -1,20 +1,11 @@
 import styled from 'styled-components';
 
 export const Header = styled.header`
-  position: sticky;
-  top: 8px;
-  z-index: 30;
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: 12px;
-  padding: 10px 14px;
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-base);
-  background: var(--neutral-primary-soft);
-  background: color-mix(in srgb, var(--neutral-primary-soft) 82%, transparent);
-  backdrop-filter: blur(12px);
-  box-shadow: var(--shadow-sm);
+  padding: 2px 2px 4px;
 `;
 
 export const Brand = styled.div`
