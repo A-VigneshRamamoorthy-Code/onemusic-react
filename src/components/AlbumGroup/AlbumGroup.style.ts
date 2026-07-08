@@ -6,28 +6,34 @@ export const Groups = styled.div`
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 16px 12px;
+  /* Prevent grid from overflowing its container. */
+  min-width: 0;
+  width: 100%;
 `;
 
 export const Card = styled.article`
   display: flex;
   flex-direction: column;
   gap: 7px;
+  /* Required: without this grid items can expand beyond their 1fr column. */
+  min-width: 0;
   animation: ${rise} var(--dur) var(--ease-out) both;
 `;
 
 export const ArtWrap = styled.div`
   position: relative;
-  aspect-ratio: 1;
   width: 100%;
+  aspect-ratio: 1;
   border-radius: var(--radius-base);
   overflow: hidden;
   box-shadow: var(--shadow-md);
 `;
 
 export const ArtBtn = styled.button`
+  /* Fill the entire ArtWrap so the clickable area matches the art. */
+  position: absolute;
+  inset: 0;
   display: block;
-  width: 100%;
-  height: 100%;
   transition: transform var(--dur-quick) var(--ease);
 
   &:active {
