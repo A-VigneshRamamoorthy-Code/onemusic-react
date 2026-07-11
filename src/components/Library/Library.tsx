@@ -4,7 +4,7 @@ import { AlbumGroup, AlbumGroups } from '../AlbumGroup';
 import { Button } from '../Button';
 import { Placeholder } from '../Placeholder';
 import { ScanBanner, TrackList, TrackRow } from '../TrackRow';
-import { IconChevronLeft } from '../Icon';
+import { IconChevronLeft, IconDownload } from '../Icon';
 import { folderLabel } from '../../utils/tracks';
 import type { Track } from '../../types';
 import type { LibraryProps } from './Library.types';
@@ -25,6 +25,7 @@ function LibraryInner({
   isDownloading,
   onSelect,
   onDownload,
+  onDownloadAll,
   onRemoveDownload,
   onRemoveAllDownloads,
 }: LibraryProps) {
@@ -130,7 +131,13 @@ function LibraryInner({
     <S.Section>
       <S.Head>
         <S.Title>{title}</S.Title>
-        {viewMode === 'downloaded' && downloadedCount > 0 ? (
+        {viewMode === 'songs' && tracks.length > 0 ? (
+          <S.HeaderAction>
+            <Button variant="secondary" size="sm" onClick={onDownloadAll} disabled={isLoading}>
+              <IconDownload size={16} /> Download all
+            </Button>
+          </S.HeaderAction>
+        ) : viewMode === 'downloaded' && downloadedCount > 0 ? (
           <S.HeaderAction>
             <Button variant="ghost" size="sm" onClick={onRemoveAllDownloads}>
               Remove all

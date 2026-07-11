@@ -1,4 +1,5 @@
 import type { DownloadedTrackMeta, Track } from '../types';
+import { normalizeTrackMetadata } from '../utils/tracks';
 
 // IndexedDB-backed offline store for downloaded tracks. Blobs persist across
 // reloads and tab closes so downloaded music is available offline.
@@ -83,12 +84,14 @@ export async function listTracks(): Promise<DownloadedTrackMeta[]> {
         const rows = (request.result as StoredTrack[]) || [];
         // Strip the blob so we don't hold every audio file in memory.
         const meta: DownloadedTrackMeta[] = rows.map((row) => ({
-          id: row.id,
-          name: row.name,
-          title: row.title,
-          artist: row.artist,
-          album: row.album,
-          mimeType: row.mimeType,
+          ...normalizeTrackMetadata({
+            id: row.id,
+            name: row.name,
+            title: row.title,
+            artist: row.artist,
+            album: row.album,
+            mimeType: row.mimeType,
+          }),
           size: row.size,
           savedAt: row.savedAt,
         }));

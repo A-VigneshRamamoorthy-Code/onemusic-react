@@ -1,4 +1,5 @@
 import { TRACKS_CACHE_PREFIX } from '../config/constants';
+import { normalizeTrackMetadata } from '../utils/tracks';
 import type { Track } from '../types';
 
 // Persist the synced track list (metadata only) in localStorage, keyed by folder, so
@@ -15,7 +16,7 @@ export function loadCachedTracks(folderPath: string): Track[] | null {
       return null;
     }
     const parsed = JSON.parse(raw) as Track[];
-    return Array.isArray(parsed) ? parsed : null;
+    return Array.isArray(parsed) ? parsed.map(normalizeTrackMetadata) : null;
   } catch {
     return null;
   }

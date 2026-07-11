@@ -15,6 +15,7 @@ export interface LibraryProps {
   isDownloading: (id: string) => boolean;
   onSelect: (track: Track) => void;
   onDownload: (track: Track) => void;
+  onDownloadAll: () => void;
   onRemoveDownload: (track: Track) => void;
   onRemoveAllDownloads: () => void;
 }

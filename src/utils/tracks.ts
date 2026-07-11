@@ -1,6 +1,36 @@
 import { AUDIO_EXTENSIONS } from '../config/constants';
 import type { DriveItem, Track } from '../types';
 
+const UNKNOWN_METADATA = /^(unknown|unknwn|n\/a|na|null|none|undefined)$/i;
+const NUMBER_ONLY_METADATA = /^[\d\s./-]+$/;
+const SOURCE_LABEL_METADATA = /(?:www\.|\.com\b|\.in\b|\.net\b|musiq|musicq)/i;
+
+function isUnknownMetadata(value: string): boolean {
+  return !value || UNKNOWN_METADATA.test(value);
+}
+
+function shouldUseArtistAsTitle(title: string, artist: string): boolean {
+  return (
+    Boolean(artist) &&
+    !isUnknownMetadata(artist) &&
+    (isUnknownMetadata(title) || NUMBER_ONLY_METADATA.test(title) || SOURCE_LABEL_METADATA.test(title))
+  );
+}
+
+/** Repair the common OneDrive tag layout where the song is stored in artist. */
+export function normalizeTrackMetadata(track: Track): Track {
+  const title = track.title.trim();
+  const artist = track.artist.trim();
+  if (!shouldUseArtistAsTitle(title, artist)) {
+    return track;
+  }
+  return {
+    ...track,
+    title: artist,
+    artist: isUnknownMetadata(title) ? 'Unknown artist' : title,
+  };
+}
+
 /** True when a file name has a recognised audio extension. */
 export function isAudioFile(name: string): boolean {
   const extension = name.split('.').pop()?.toLowerCase();
@@ -50,14 +80,10 @@ export function buildTrackMetadata(item: DriveItem): Track {
 
   const rawTitle = audio.title?.trim() || '';
   const rawArtist = audio.artist?.trim() || audio.albumArtist?.trim() || '';
-  const unknownPattern = /^(unknown|unknwn|n\/a|na|null|none|undefined)$/i;
-  const numberOnlyPattern = /^[\d\s./-]+$/;
-  const shouldSwapTitleAndArtist =
-    (!rawTitle || unknownPattern.test(rawTitle) || numberOnlyPattern.test(rawTitle)) &&
-    Boolean(rawArtist && !unknownPattern.test(rawArtist));
+  const shouldSwapTitleAndArtist = shouldUseArtistAsTitle(rawTitle, rawArtist);
 
   const title = shouldSwapTitleAndArtist ? rawArtist : rawTitle || guessedTitle;
-  const artist = shouldSwapTitleAndArtist ? rawTitle || guessedArtist : rawArtist || guessedArtist;
+  const artist = shouldSwapTitleAndArtist ? (isUnknownMetadata(rawTitle) ? guessedArtist : rawTitle) : rawArtist || guessedArtist;
   const album = audio.album?.trim() || folderName || 'Singles';
 
   return {

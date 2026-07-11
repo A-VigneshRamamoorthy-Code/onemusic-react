@@ -133,6 +133,23 @@ export default function App() {
     }
   }, [activeTrackId, downloads, library.orderedTracks]);
 
+  const handleDownloadAll = useCallback(async () => {
+    const pending = library.tracks.filter(
+      (track) => !downloads.isDownloaded(track.id) && !downloads.isDownloading(track.id),
+    );
+    if (!pending.length) {
+      setStatus('All library songs are already downloaded or in progress.');
+      return;
+    }
+    setStatus(`Downloading ${pending.length} song${pending.length === 1 ? '' : 's'}…`);
+    for (const track of pending) {
+      // Download sequentially to avoid saturating mobile connections and storage.
+      // eslint-disable-next-line no-await-in-loop
+      await downloads.downloadTrack(track);
+    }
+    setStatus(`Finished downloading ${pending.length} song${pending.length === 1 ? '' : 's'}.`);
+  }, [downloads, library.tracks, setStatus]);
+
   // Return to the library automatically once a user-triggered sync starts streaming tracks.
   const pendingSyncCloseRef = useRef(false);
   const handleSync = useCallback(() => {
@@ -207,6 +224,7 @@ export default function App() {
               isDownloading={downloads.isDownloading}
               onSelect={player.playTrack}
               onDownload={downloads.downloadTrack}
+              onDownloadAll={handleDownloadAll}
               onRemoveDownload={downloads.removeDownload}
               onRemoveAllDownloads={downloads.removeAllDownloads}
             />
